@@ -1,0 +1,19 @@
+# on:
+#   push:
+#     tags:
+#       - '*'
+
+on:
+  push:
+    branches:
+      - master
+
+name: Create Production Release Environment
+
+jobs:
+  Prod-Release:
+    uses: mrsool/workflows/.github/workflows/production_deployment.yaml@main
+    with:
+      project_name: mrsool-imagor
+      values_files: mrsool-imagor/ci/production_values.yaml
+    secrets: inherit
