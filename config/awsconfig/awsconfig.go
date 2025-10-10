@@ -95,7 +95,7 @@ func WithAWS(fs *flag.FlagSet, cb func() (*zap.Logger, bool)) imagor.Option {
 		s3StorageClass = fs.String("s3-storage-class", "STANDARD",
 			"S3 File Storage Class. Available values: REDUCED_REDUNDANCY, STANDARD_IA, ONEZONE_IA, INTELLIGENT_TIERING, GLACIER, DEEP_ARCHIVE. Default: STANDARD.")
 
-		_, _ = cb()
+		logger, _ = cb()
 	)
 	return func(app *imagor.Imagor) {
 		if *s3StorageBucket == "" && *s3LoaderBucket == "" && *s3ResultStorageBucket == "" {
@@ -172,6 +172,7 @@ func WithAWS(fs *flag.FlagSet, cb func() (*zap.Logger, bool)) imagor.Option {
 				s3storage.WithStorageClass(*s3StorageClass),
 				s3storage.WithEndpoint(endpoint),
 				s3storage.WithForcePathStyle(*s3ForcePathStyle),
+				s3storage.WithLogger(logger),
 			)
 
 			app.Storages = append(app.Storages, storage)
@@ -190,6 +191,7 @@ func WithAWS(fs *flag.FlagSet, cb func() (*zap.Logger, bool)) imagor.Option {
 				s3storage.WithSafeChars(*s3SafeChars),
 				s3storage.WithEndpoint(endpoint),
 				s3storage.WithForcePathStyle(*s3ForcePathStyle),
+				s3storage.WithLogger(logger),
 			)
 
 			app.Loaders = append(app.Loaders, loader)
@@ -211,6 +213,7 @@ func WithAWS(fs *flag.FlagSet, cb func() (*zap.Logger, bool)) imagor.Option {
 				s3storage.WithStorageClass(*s3StorageClass),
 				s3storage.WithEndpoint(endpoint),
 				s3storage.WithForcePathStyle(*s3ForcePathStyle),
+				s3storage.WithLogger(logger),
 			)
 
 			app.ResultStorages = append(app.ResultStorages, resultStorage)

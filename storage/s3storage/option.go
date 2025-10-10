@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"go.uber.org/zap"
 )
 
 // Option S3Storage option
@@ -100,5 +101,14 @@ func WithEndpoint(endpoint string) Option {
 func WithForcePathStyle(forcePathStyle bool) Option {
 	return func(s *S3Storage) {
 		s.ForcePathStyle = forcePathStyle
+	}
+}
+
+// WithLogger with logger option
+func WithLogger(logger *zap.Logger) Option {
+	return func(s *S3Storage) {
+		if logger != nil {
+			s.Logger = logger
+		}
 	}
 }

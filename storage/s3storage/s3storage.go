@@ -16,6 +16,7 @@ import (
 	"github.com/aws/smithy-go"
 	"github.com/cshum/imagor"
 	"github.com/cshum/imagor/imagorpath"
+	"go.uber.org/zap"
 )
 
 // S3Storage AWS S3 Storage implements imagor.Storage interface
@@ -31,6 +32,7 @@ type S3Storage struct {
 	Expiration     time.Duration
 	Endpoint       string
 	ForcePathStyle bool
+	Logger         *zap.Logger
 
 	safeChars imagorpath.SafeChars
 }
@@ -48,6 +50,7 @@ func New(cfg aws.Config, bucket string, options ...Option) *S3Storage {
 		BaseDir:    baseDir,
 		PathPrefix: "/",
 		ACL:        string(types.ObjectCannedACLPublicRead),
+		Logger:     zap.NewNop(),
 	}
 	for _, option := range options {
 		option(s)
@@ -126,6 +129,10 @@ func (s *S3Storage) Get(r *http.Request, image string) (*imagor.Blob, error) {
 		out, err := s.Client.GetObject(ctx, input)
 		if err != nil {
 			if isNotFoundError(err) {
+				s.Logger.Info("S3 object not found",
+					zap.String("bucket", bucket),
+					zap.String("key", image),
+					zap.String("original_image", r.URL.Path))
 				return nil, 0, imagor.ErrNotFound
 			}
 			return nil, 0, err
@@ -143,7 +150,7 @@ func (s *S3Storage) Get(r *http.Request, image string) (*imagor.Blob, error) {
 			}
 		})
 		if s.Expiration > 0 && out.LastModified != nil {
-			if time.Now().Sub(*out.LastModified) > s.Expiration {
+			if time.Since(*out.LastModified) > s.Expiration {
 				return nil, 0, imagor.ErrExpired
 			}
 		}
@@ -211,6 +218,9 @@ func (s *S3Storage) Stat(ctx context.Context, image string) (stat *imagor.Stat, 
 	head, err := s.Client.HeadObject(ctx, input)
 	if err != nil {
 		if isNotFoundError(err) {
+			s.Logger.Info("S3 object not found (stat)",
+				zap.String("bucket", bucket),
+				zap.String("key", image))
 			return nil, imagor.ErrNotFound
 		}
 		return nil, err
