@@ -34,7 +34,8 @@ type S3Storage struct {
 	ForcePathStyle bool
 	Logger         *zap.Logger
 
-	safeChars imagorpath.SafeChars
+	safeChars  imagorpath.SafeChars
+	baseConfig aws.Config
 }
 
 // New creates S3Storage
@@ -51,6 +52,7 @@ func New(cfg aws.Config, bucket string, options ...Option) *S3Storage {
 		PathPrefix: "/",
 		ACL:        string(types.ObjectCannedACLPublicRead),
 		Logger:     zap.NewNop(),
+		baseConfig: cfg,
 	}
 	for _, option := range options {
 		option(s)
@@ -81,23 +83,6 @@ func New(cfg aws.Config, bucket string, options ...Option) *S3Storage {
 	return s
 }
 
-// getBucketFromRequest extracts the bucket name from the "AWS-BUCKET" header
-func (s *S3Storage) getBucketFromRequest(r *http.Request) string {
-	bucket := r.Header.Get("AWS-BUCKET")
-	if bucket == "" {
-		return s.Bucket
-	}
-	return bucket
-}
-
-// getBucketFromContext extracts the bucket name from the context
-func (s *S3Storage) getBucketFromContext(ctx context.Context) string {
-	if bucket, ok := ctx.Value("aws-bucket").(string); ok && bucket != "" {
-		return bucket
-	}
-	return s.Bucket
-}
-
 // Path transforms and validates image key for storage path
 func (s *S3Storage) Path(image string) (string, bool) {
 	image = "/" + imagorpath.Normalize(image, s.safeChars)
@@ -119,6 +104,8 @@ func (s *S3Storage) Get(r *http.Request, image string) (*imagor.Blob, error) {
 		return nil, imagor.ErrInvalid
 	}
 	bucket := s.getBucketFromRequest(r)
+	region := s.getRegionFromRequest(r)
+	client := s.getClientWithRegion(region)
 	var blob *imagor.Blob
 	var once sync.Once
 	blob = imagor.NewBlob(func() (io.ReadCloser, int64, error) {
@@ -126,7 +113,7 @@ func (s *S3Storage) Get(r *http.Request, image string) (*imagor.Blob, error) {
 			Bucket: aws.String(bucket),
 			Key:    aws.String(image),
 		}
-		out, err := s.Client.GetObject(ctx, input)
+		out, err := client.GetObject(ctx, input)
 		if err != nil {
 			if isNotFoundError(err) {
 				s.Logger.Info("S3 object not found",
@@ -170,6 +157,8 @@ func (s *S3Storage) Put(ctx context.Context, image string, blob *imagor.Blob) er
 		return imagor.ErrInvalid
 	}
 	bucket := s.getBucketFromContext(ctx)
+	region := s.getRegionFromContext(ctx)
+	client := s.getClientWithRegion(region)
 	reader, size, err := blob.NewReader()
 	if err != nil {
 		return err
@@ -186,7 +175,7 @@ func (s *S3Storage) Put(ctx context.Context, image string, blob *imagor.Blob) er
 		Key:           aws.String(image),
 		StorageClass:  types.StorageClass(s.StorageClass),
 	}
-	_, err = s.Client.PutObject(ctx, input)
+	_, err = client.PutObject(ctx, input)
 	return err
 }
 
@@ -197,7 +186,9 @@ func (s *S3Storage) Delete(ctx context.Context, image string) error {
 		return imagor.ErrInvalid
 	}
 	bucket := s.getBucketFromContext(ctx)
-	_, err := s.Client.DeleteObject(ctx, &s3.DeleteObjectInput{
+	region := s.getRegionFromContext(ctx)
+	client := s.getClientWithRegion(region)
+	_, err := client.DeleteObject(ctx, &s3.DeleteObjectInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(image),
 	})
@@ -211,11 +202,13 @@ func (s *S3Storage) Stat(ctx context.Context, image string) (stat *imagor.Stat, 
 		return nil, imagor.ErrInvalid
 	}
 	bucket := s.getBucketFromContext(ctx)
+	region := s.getRegionFromContext(ctx)
+	client := s.getClientWithRegion(region)
 	input := &s3.HeadObjectInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(image),
 	}
-	head, err := s.Client.HeadObject(ctx, input)
+	head, err := client.HeadObject(ctx, input)
 	if err != nil {
 		if isNotFoundError(err) {
 			s.Logger.Info("S3 object not found (stat)",
