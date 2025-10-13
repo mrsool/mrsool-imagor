@@ -115,13 +115,13 @@ func (s *S3Storage) Get(r *http.Request, image string) (*imagor.Blob, error) {
 		}
 		out, err := client.GetObject(ctx, input)
 		if err != nil {
-			if isNotFoundError(err) {
-				return nil, 0, imagor.ErrNotFound
-			}
 			s.Logger.Info("S3 get object error",
 				zap.String("bucket", bucket),
 				zap.String("key", image),
 				zap.String("original_image", r.URL.Path))
+			if isNotFoundError(err) {
+				return nil, 0, imagor.ErrNotFound
+			}
 			return nil, 0, err
 		}
 		once.Do(func() {
