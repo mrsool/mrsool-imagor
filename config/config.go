@@ -244,6 +244,6 @@ func CreateServer(args []string, funcs ...Option) (srv *server.Server) {
 		server.WithDebug(*debug),
 		server.WithMetrics(pm),
 		server.WithSentry(*sentryDsn),
-		server.WithMiddleware(s3storage.BucketMiddleware),
+		server.WithMiddleware(s3storage.S3ConfigMiddleware),
 	)
 }
