@@ -116,12 +116,12 @@ func (s *S3Storage) Get(r *http.Request, image string) (*imagor.Blob, error) {
 		out, err := client.GetObject(ctx, input)
 		if err != nil {
 			if isNotFoundError(err) {
-				s.Logger.Info("S3 object not found",
-					zap.String("bucket", bucket),
-					zap.String("key", image),
-					zap.String("original_image", r.URL.Path))
 				return nil, 0, imagor.ErrNotFound
 			}
+			s.Logger.Info("S3 get object error",
+				zap.String("bucket", bucket),
+				zap.String("key", image),
+				zap.String("original_image", r.URL.Path))
 			return nil, 0, err
 		}
 		once.Do(func() {
@@ -211,11 +211,11 @@ func (s *S3Storage) Stat(ctx context.Context, image string) (stat *imagor.Stat, 
 	head, err := client.HeadObject(ctx, input)
 	if err != nil {
 		if isNotFoundError(err) {
-			s.Logger.Info("S3 object not found (stat)",
-				zap.String("bucket", bucket),
-				zap.String("key", image))
 			return nil, imagor.ErrNotFound
 		}
+		s.Logger.Info("S3 stat error",
+			zap.String("bucket", bucket),
+			zap.String("key", image))
 		return nil, err
 	}
 	return &imagor.Stat{
