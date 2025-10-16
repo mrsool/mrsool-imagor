@@ -31,14 +31,14 @@ func GeneratePath(p Params) string {
 			strconv.FormatFloat(p.CropRight, 'f', -1, 64),
 			strconv.FormatFloat(p.CropBottom, 'f', -1, 64)))
 	}
+	if p.MaxDim {
+		parts = append(parts, "max-dim")
+	}
 	if p.FitIn {
 		parts = append(parts, "fit-in")
 	}
 	if p.Stretch {
 		parts = append(parts, "stretch")
-	}
-	if p.MaxDim {
-		parts = append(parts, "max-dim")
 	}
 	if p.HFlip || p.Width != 0 || p.VFlip || p.Height != 0 ||
 		p.PaddingLeft > 0 || p.PaddingTop > 0 {

@@ -25,12 +25,12 @@ var paramsRegex = regexp.MustCompile(
 		"(trim(:(top-left|bottom-right))?(:(\\d+))?/)?" +
 		// crop
 		"(((0?\\.)?\\d+)x((0?\\.)?\\d+):(([0-1]?\\.)?\\d+)x(([0-1]?\\.)?\\d+)/)?" +
+		// max-dim (can appear before fit-in)
+		"(max-dim/)?" +
 		// fit-in
 		"(fit-in/)?" +
 		// stretch
 		"(stretch/)?" +
-		// max-dim
-		"(max-dim/)?" +
 		// dimensions
 		"((\\-?)(\\d*)x(\\-?)(\\d*)/)?" +
 		// paddings
@@ -96,15 +96,15 @@ func Apply(p Params, path string) Params {
 	}
 	index += 9
 	if match[index] != "" {
+		p.MaxDim = true
+	}
+	index++
+	if match[index] != "" {
 		p.FitIn = true
 	}
 	index++
 	if match[index] != "" {
 		p.Stretch = true
-	}
-	index++
-	if match[index] != "" {
-		p.MaxDim = true
 	}
 	index++
 	if match[index] != "" {

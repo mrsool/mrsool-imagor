@@ -359,6 +359,19 @@ func TestParseGenerate(t *testing.T) {
 				Filters:    []Filter{{Name: "some_filter"}},
 			},
 		},
+		{
+			name: "max-dim before fit-in (Mrsool enhancement)",
+			uri:  "max-dim/fit-in/270x131/filters:quality(40)filters:upscale()/staging/service_types/icons/11/burger.png",
+			params: Params{
+				Path:    "max-dim/fit-in/270x131/filters:quality(40)filters:upscale()/staging/service_types/icons/11/burger.png",
+				Image:   "staging/service_types/icons/11/burger.png",
+				MaxDim:  true,
+				FitIn:   true,
+				Width:   270,
+				Height:  131,
+				Filters: []Filter{{Name: "quality", Args: "40"}, {Name: "upscale"}},
+			},
+		},
 	}
 	for _, test := range tests {
 		if test.name == "" {
