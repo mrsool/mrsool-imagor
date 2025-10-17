@@ -11,6 +11,9 @@ import (
 
 // getBucketFromRequest extracts the bucket name from the "AWS-BUCKET" header
 func (s *S3Storage) getBucketFromRequest(r *http.Request) string {
+	if !s.bucketFromRequest {
+		return s.Bucket
+	}
 	bucket := r.Header.Get("AWS-BUCKET")
 	if bucket == "" {
 		return s.Bucket
@@ -18,19 +21,44 @@ func (s *S3Storage) getBucketFromRequest(r *http.Request) string {
 	return bucket
 }
 
+// getBucketFromRequestForKey extracts the bucket name from the "AWS-BUCKET" header for key prefixing
+func (s *S3Storage) getBucketFromRequestForKey(r *http.Request) string {
+	if s.bucketFromRequest {
+		return ""
+	}
+	return r.Header.Get("AWS-BUCKET")
+}
+
 // getBucketFromContext extracts the bucket name from the context
 func (s *S3Storage) getBucketFromContext(ctx context.Context) string {
+	if !s.bucketFromRequest {
+		return s.Bucket
+	}
 	if bucket, ok := ctx.Value("aws-bucket").(string); ok && bucket != "" {
 		return bucket
 	}
 	return s.Bucket
 }
 
+// getBucketFromContextForKey extracts the bucket name from the context for key prefixing
+func (s *S3Storage) getBucketFromContextForKey(ctx context.Context) string {
+	if s.bucketFromRequest {
+		return ""
+	}
+	if bucket, ok := ctx.Value("aws-bucket").(string); ok && bucket != "" {
+		return bucket
+	}
+	return ""
+}
+
 // getRegionFromRequest extracts the AWS region from the "AWS-REGION" header
 func (s *S3Storage) getRegionFromRequest(r *http.Request) string {
+	if !s.regionFromRequest {
+		return s.baseConfig.Region
+	}
 	region := r.Header.Get("AWS-REGION")
 	if region == "" {
-		return ""
+		return s.baseConfig.Region
 	}
 	s.Logger.Info("AWS-REGION", zap.String("region", region))
 	return region
@@ -38,11 +66,14 @@ func (s *S3Storage) getRegionFromRequest(r *http.Request) string {
 
 // getRegionFromContext extracts the AWS region from the context
 func (s *S3Storage) getRegionFromContext(ctx context.Context) string {
+	if !s.regionFromRequest {
+		return s.baseConfig.Region
+	}
 	if region, ok := ctx.Value("aws-region").(string); ok && region != "" {
 		s.Logger.Info("AWS-REGION", zap.String("region", region))
 		return region
 	}
-	return ""
+	return s.baseConfig.Region
 }
 
 // getClientWithRegion creates an S3 client with the specified region
@@ -70,4 +101,19 @@ func (s *S3Storage) getClientWithRegion(region string) *s3.Client {
 	}
 
 	return s3.NewFromConfig(cfg, s3Options...)
+}
+
+// buildKeyWithBucketPrefix builds the key with bucket prefix when bucketFromRequest is false
+func (s *S3Storage) buildKeyWithBucketPrefix(key, bucketPrefix string) string {
+	if bucketPrefix == "" {
+		return key
+	}
+	// Ensure proper path separation
+	if key == "" {
+		return bucketPrefix
+	}
+	if key[0] == '/' {
+		return bucketPrefix + key
+	}
+	return bucketPrefix + "/" + key
 }

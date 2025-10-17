@@ -112,3 +112,17 @@ func WithLogger(logger *zap.Logger) Option {
 		}
 	}
 }
+
+// WithBucketFromRequest with bucket from request option
+func WithBucketFromRequest(bucketFromRequest bool) Option {
+	return func(s *S3Storage) {
+		s.bucketFromRequest = bucketFromRequest
+	}
+}
+
+// WithRegionFromRequest with region from request option
+func WithRegionFromRequest(regionFromRequest bool) Option {
+	return func(s *S3Storage) {
+		s.regionFromRequest = regionFromRequest
+	}
+}
