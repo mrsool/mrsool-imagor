@@ -3,6 +3,8 @@ package prometheusmetrics
 import (
 	"context"
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -15,7 +17,7 @@ var (
 			Name: "http_request_duration_seconds",
 			Help: "A histogram of latencies for requests",
 		},
-		[]string{"code", "method"},
+		[]string{"code", "method", "source"},
 	)
 )
 
@@ -66,7 +68,35 @@ func (s *PrometheusMetrics) Startup(_ context.Context) error {
 
 // Handle prometheus http middleware handler
 func (s *PrometheusMetrics) Handle(next http.Handler) http.Handler {
-	return promhttp.InstrumentHandlerDuration(httpRequestDuration, next)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Extract source from AWS-BUCKET header
+		source := r.Header.Get("AWS-BUCKET")
+		if source == "" {
+			source = "unknown"
+		}
+
+		// Create a custom response writer to capture status code
+		recorder := &responseRecorder{
+			ResponseWriter: w,
+			statusCode:     200,
+		}
+
+		// Record start time
+		start := time.Now()
+
+		// Call the next handler
+		next.ServeHTTP(recorder, r)
+
+		// Calculate duration
+		duration := time.Since(start)
+
+		// Record the metric with source label
+		httpRequestDuration.WithLabelValues(
+			strconv.Itoa(recorder.statusCode),
+			r.Method,
+			source,
+		).Observe(duration.Seconds())
+	})
 }
 
 // Option PrometheusMetrics option
@@ -93,4 +123,15 @@ func WithLogger(logger *zap.Logger) Option {
 			s.Logger = logger
 		}
 	}
+}
+
+// responseRecorder captures the HTTP status code for metrics
+type responseRecorder struct {
+	http.ResponseWriter
+	statusCode int
+}
+
+func (r *responseRecorder) WriteHeader(statusCode int) {
+	r.statusCode = statusCode
+	r.ResponseWriter.WriteHeader(statusCode)
 }

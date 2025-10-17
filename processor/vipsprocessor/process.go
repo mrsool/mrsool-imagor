@@ -40,7 +40,7 @@ func (v *Processor) Process(
 ) (*imagor.Blob, error) {
 	timer := v.NewMethodTimer("vipsprocessor.Process")
 	if timer != nil {
-		defer timer.ObserveDuration()
+		defer timer.ObserveDuration(ctx)
 	}
 	ctx = withContext(ctx)
 	defer contextDone(ctx)
@@ -472,7 +472,7 @@ func (v *Processor) process(
 ) error {
 	timer := v.NewMethodTimer("vipsprocessor.process")
 	if timer != nil {
-		defer timer.ObserveDuration()
+		defer timer.ObserveDuration(ctx)
 	}
 	var (
 		origWidth  = float64(img.Width())
@@ -579,6 +579,7 @@ func (v *Processor) process(
 			if len(focalRects) > 0 {
 				focalX, focalY := parseFocalPoint(focalRects...)
 				if err := v.FocalThumbnail(
+					ctx,
 					img, w, h,
 					(focalX-cropLeft)/float64(img.Width()),
 					(focalY-cropTop)/float64(img.PageHeight()),
@@ -586,7 +587,7 @@ func (v *Processor) process(
 					return err
 				}
 			} else {
-				if err := v.Thumbnail(img, w, h, interest, vips.SizeBoth); err != nil {
+				if err := v.Thumbnail(ctx, img, w, h, interest, vips.SizeBoth); err != nil {
 					return err
 				}
 			}

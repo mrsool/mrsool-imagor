@@ -209,7 +209,7 @@ func (v *Processor) newImageFromBlob(
 ) (*vips.Image, error) {
 	timer := v.NewMethodTimer("vipsprocessor.newImageFromBlob")
 	if timer != nil {
-		defer timer.ObserveDuration()
+		defer timer.ObserveDuration(ctx)
 	}
 	if blob == nil || blob.IsEmpty() {
 		return nil, imagor.ErrNotFound
@@ -249,7 +249,7 @@ func (v *Processor) newThumbnailFromBlob(
 ) (*vips.Image, error) {
 	timer := v.NewMethodTimer("vipsprocessor.newThumbnailFromBlob")
 	if timer != nil {
-		defer timer.ObserveDuration()
+		defer timer.ObserveDuration(ctx)
 	}
 	if blob == nil || blob.IsEmpty() {
 		return nil, imagor.ErrNotFound
@@ -279,7 +279,7 @@ func (v *Processor) NewThumbnail(
 ) (*vips.Image, error) {
 	timer := v.NewMethodTimer("vipsprocessor.NewThumbnail")
 	if timer != nil {
-		defer timer.ObserveDuration()
+		defer timer.ObserveDuration(ctx)
 	}
 	var options = &vips.LoadOptions{}
 	if dpi > 0 {
@@ -339,7 +339,7 @@ func (v *Processor) newThumbnailFallback(
 ) (img *vips.Image, err error) {
 	timer := v.NewMethodTimer("vipsprocessor.newThumbnailFallback")
 	if timer != nil {
-		defer timer.ObserveDuration()
+		defer timer.ObserveDuration(ctx)
 	}
 	if img, err = v.CheckResolution(v.newImageFromBlob(ctx, blob, options)); err != nil {
 		return
@@ -357,7 +357,7 @@ func (v *Processor) newThumbnailFallback(
 func (v *Processor) NewImage(ctx context.Context, blob *imagor.Blob, n, page int, dpi int) (*vips.Image, error) {
 	timer := v.NewMethodTimer("vipsprocessor.NewImage")
 	if timer != nil {
-		defer timer.ObserveDuration()
+		defer timer.ObserveDuration(ctx)
 	}
 	var options = &vips.LoadOptions{}
 	if dpi > 0 {
@@ -386,11 +386,12 @@ func (v *Processor) NewImage(ctx context.Context, blob *imagor.Blob, n, page int
 
 // Thumbnail handles thumbnail operation
 func (v *Processor) Thumbnail(
+	ctx context.Context,
 	img *vips.Image, width, height int, crop vips.Interesting, size vips.Size,
 ) error {
 	timer := v.NewMethodTimer("vipsprocessor.Thumbnail")
 	if timer != nil {
-		defer timer.ObserveDuration()
+		defer timer.ObserveDuration(ctx)
 	}
 	if crop == vips.InterestingNone || size == vips.SizeForce || img.Height() == img.PageHeight() {
 		return img.ThumbnailImage(width, &vips.ThumbnailImageOptions{
@@ -401,10 +402,10 @@ func (v *Processor) Thumbnail(
 }
 
 // FocalThumbnail handles thumbnail with custom focal point
-func (v *Processor) FocalThumbnail(img *vips.Image, w, h int, fx, fy float64) (err error) {
+func (v *Processor) FocalThumbnail(ctx context.Context, img *vips.Image, w, h int, fx, fy float64) (err error) {
 	timer := v.NewMethodTimer("vipsprocessor.FocalThumbnail")
 	if timer != nil {
-		defer timer.ObserveDuration()
+		defer timer.ObserveDuration(ctx)
 	}
 	var imageWidth, imageHeight float64
 	// exif orientation greater 5-8 are 90 or 270 degrees, w and h swapped

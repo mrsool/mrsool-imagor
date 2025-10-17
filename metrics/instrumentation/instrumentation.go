@@ -17,7 +17,7 @@ var (
 			Help:    "A histogram of latencies for individual methods",
 			Buckets: []float64{.001, .0025, .005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10},
 		},
-		[]string{"package", "struct", "method", "status"},
+		[]string{"package", "struct", "method", "status", "source"},
 	)
 
 	// MethodCounter tracks method call counts
@@ -26,7 +26,7 @@ var (
 			Name: "imagor_method_calls_total",
 			Help: "Total number of method calls",
 		},
-		[]string{"package", "struct", "method", "status"},
+		[]string{"package", "struct", "method", "status", "source"},
 	)
 )
 
@@ -104,21 +104,28 @@ func (i *Instrumentation) NewMethodTimerFromString(identifier string) *MethodTim
 }
 
 // ObserveDuration records the duration and metrics for the method
-func (mt *MethodTimer) ObserveDuration() {
+func (mt *MethodTimer) ObserveDuration(ctx context.Context) {
 	if mt.instrumentation == nil {
 		return
 	}
 	duration := time.Since(mt.start)
-	mt.instrumentation.RecordMethodDuration(context.Background(), mt.pkg, mt.structName, mt.methodName, duration, nil)
+	mt.instrumentation.RecordMethodDuration(ctx, mt.pkg, mt.structName, mt.methodName, duration, nil)
 }
 
 // ObserveDurationWithError records the duration and metrics for the method with an error
-func (mt *MethodTimer) ObserveDurationWithError(err error) {
+func (mt *MethodTimer) ObserveDurationWithError(ctx context.Context, err error) {
 	if mt.instrumentation == nil {
 		return
 	}
 	duration := time.Since(mt.start)
-	mt.instrumentation.RecordMethodDuration(context.Background(), mt.pkg, mt.structName, mt.methodName, duration, err)
+	mt.instrumentation.RecordMethodDuration(ctx, mt.pkg, mt.structName, mt.methodName, duration, err)
+}
+
+func getSourceFromContext(ctx context.Context) string {
+	if source, ok := ctx.Value("aws-bucket").(string); ok {
+		return source
+	}
+	return "unknown"
 }
 
 // RecordMethodDuration records the duration and status of a method call
@@ -127,10 +134,11 @@ func (i *Instrumentation) RecordMethodDuration(ctx context.Context, pkg, structN
 	if err != nil {
 		status = "error"
 	}
+	source := getSourceFromContext(ctx)
 
 	// Record metrics
-	MethodLatency.WithLabelValues(pkg, structName, methodName, status).Observe(duration.Seconds())
-	MethodCounter.WithLabelValues(pkg, structName, methodName, status).Inc()
+	MethodLatency.WithLabelValues(pkg, structName, methodName, status, source).Observe(duration.Seconds())
+	MethodCounter.WithLabelValues(pkg, structName, methodName, status, source).Inc()
 
 	// Log if debug is enabled
 	if i.Logger != nil {
