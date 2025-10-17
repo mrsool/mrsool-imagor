@@ -28,7 +28,7 @@ Once enabled, metrics are available at:
 The following metrics are collected:
 
 - `http_request_duration_seconds` - Histogram of HTTP request latencies
-  - Labels: `code` (HTTP status code), `method` (HTTP method)
+  - Labels: `code` (HTTP status code), `method` (HTTP method), `source` (AWS-BUCKET header value or "unknown")
 
 ### Example Prometheus Configuration
 

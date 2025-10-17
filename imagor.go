@@ -261,11 +261,10 @@ func (app *Imagor) ServeBlob(
 // Do executes imagor operations
 func (app *Imagor) Do(r *http.Request, p imagorpath.Params) (blob *Blob, err error) {
 	timer := app.NewMethodTimer("Imagor.Do")
-	if timer != nil {
-		defer timer.ObserveDuration()
-	}
-
 	var ctx = withContext(r.Context())
+	if timer != nil {
+		defer timer.ObserveDuration(ctx)
+	}
 	var cancel func()
 	if app.RequestTimeout > 0 {
 		ctx, cancel = context.WithTimeout(ctx, app.RequestTimeout)
@@ -544,11 +543,11 @@ func (app *Imagor) requestWithLoadContext(r *http.Request) *http.Request {
 
 func (app *Imagor) loadResult(r *http.Request, resultKey, imageKey string) *Blob {
 	timer := app.NewMethodTimer("Imagor.loadResult")
-	if timer != nil {
-		defer timer.ObserveDuration()
-	}
 	r = app.requestWithLoadContext(r)
 	ctx := r.Context()
+	if timer != nil {
+		defer timer.ObserveDuration(ctx)
+	}
 	blob, origin, err := fromStorages(r, app.ResultStorages, resultKey)
 	if err == nil && !isBlobEmpty(blob) {
 		if app.ModifiedTimeCheck && origin != nil && blob.Stat != nil {
@@ -632,11 +631,10 @@ func fromStorages(
 
 func (app *Imagor) loadStorage(r *http.Request, key string) (blob *Blob, shouldSave bool, err error) {
 	timer := app.NewMethodTimer("Imagor.loadStorage")
-	if timer != nil {
-		defer timer.ObserveDuration()
-	}
-
 	r = app.requestWithLoadContext(r)
+	if timer != nil {
+		defer timer.ObserveDuration(r.Context())
+	}
 	var origin Storage
 	blob, origin, err = app.fromStoragesAndLoaders(r, app.Storages, app.Loaders, key)
 	if !isBlobEmpty(blob) && origin == nil &&
@@ -724,7 +722,7 @@ func (app *Imagor) loaderStat(ctx context.Context, key string) (stat *Stat, err 
 func (app *Imagor) save(ctx context.Context, storages []Storage, key string, blob *Blob) {
 	timer := app.NewMethodTimer("Imagor.save")
 	if timer != nil {
-		defer timer.ObserveDuration()
+		defer timer.ObserveDuration(ctx)
 	}
 
 	if key == "" {
@@ -792,7 +790,7 @@ func (app *Imagor) suppress(
 ) (blob *Blob, err error) {
 	timer := app.NewMethodTimer("Imagor.suppress")
 	if timer != nil {
-		defer timer.ObserveDurationWithError(err)
+		defer timer.ObserveDurationWithError(ctx, err)
 	}
 	if key == "" {
 		return fn(ctx, blobNoop)
