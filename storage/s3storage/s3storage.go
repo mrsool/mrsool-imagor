@@ -34,8 +34,10 @@ type S3Storage struct {
 	ForcePathStyle bool
 	Logger         *zap.Logger
 
-	safeChars  imagorpath.SafeChars
-	baseConfig aws.Config
+	safeChars         imagorpath.SafeChars
+	bucketFromRequest bool
+	regionFromRequest bool
+	baseConfig        aws.Config
 }
 
 // New creates S3Storage
@@ -50,7 +52,7 @@ func New(cfg aws.Config, bucket string, options ...Option) *S3Storage {
 
 		BaseDir:    baseDir,
 		PathPrefix: "/",
-		ACL:        string(types.ObjectCannedACLPublicRead),
+		ACL:        "", // Default to no ACL to avoid ACL errors on modern buckets
 		Logger:     zap.NewNop(),
 		baseConfig: cfg,
 	}
@@ -106,18 +108,24 @@ func (s *S3Storage) Get(r *http.Request, image string) (*imagor.Blob, error) {
 	bucket := s.getBucketFromRequest(r)
 	region := s.getRegionFromRequest(r)
 	client := s.getClientWithRegion(region)
+
+	// Get bucket prefix for key when bucketFromRequest is false
+	bucketPrefix := s.getBucketFromRequestForKey(r)
+	key := s.buildKeyWithBucketPrefix(image, bucketPrefix)
+
 	var blob *imagor.Blob
 	var once sync.Once
 	blob = imagor.NewBlob(func() (io.ReadCloser, int64, error) {
 		input := &s3.GetObjectInput{
 			Bucket: aws.String(bucket),
-			Key:    aws.String(image),
+			Key:    aws.String(key),
 		}
 		out, err := client.GetObject(ctx, input)
 		if err != nil {
 			s.Logger.Info("S3 get object error",
 				zap.String("bucket", bucket),
-				zap.String("key", image),
+				zap.String("key", key),
+				zap.String("region", region),
 				zap.String("original_image", r.URL.Path))
 			if isNotFoundError(err) {
 				return nil, 0, imagor.ErrNotFound
@@ -159,6 +167,11 @@ func (s *S3Storage) Put(ctx context.Context, image string, blob *imagor.Blob) er
 	bucket := s.getBucketFromContext(ctx)
 	region := s.getRegionFromContext(ctx)
 	client := s.getClientWithRegion(region)
+
+	// Get bucket prefix for key when bucketFromRequest is false
+	bucketPrefix := s.getBucketFromContextForKey(ctx)
+	key := s.buildKeyWithBucketPrefix(image, bucketPrefix)
+
 	reader, size, err := blob.NewReader()
 	if err != nil {
 		return err
@@ -167,15 +180,27 @@ func (s *S3Storage) Put(ctx context.Context, image string, blob *imagor.Blob) er
 		_ = reader.Close()
 	}()
 	input := &s3.PutObjectInput{
-		ACL:           types.ObjectCannedACL(s.ACL),
 		Body:          reader,
 		Bucket:        aws.String(bucket),
 		ContentType:   aws.String(blob.ContentType()),
 		ContentLength: aws.Int64(size),
-		Key:           aws.String(image),
+		Key:           aws.String(key),
 		StorageClass:  types.StorageClass(s.StorageClass),
 	}
+
+	// Only set ACL if it's explicitly configured
+	// This prevents ACL errors on buckets that don't support ACLs
+	if s.ACL != "" {
+		input.ACL = types.ObjectCannedACL(s.ACL)
+	}
 	_, err = client.PutObject(ctx, input)
+	if err != nil {
+		s.Logger.Info("S3 put object error",
+			zap.String("bucket", bucket),
+			zap.String("key", key),
+			zap.String("region", region),
+			zap.String("original_image", image))
+	}
 	return err
 }
 
@@ -188,10 +213,22 @@ func (s *S3Storage) Delete(ctx context.Context, image string) error {
 	bucket := s.getBucketFromContext(ctx)
 	region := s.getRegionFromContext(ctx)
 	client := s.getClientWithRegion(region)
+
+	// Get bucket prefix for key when bucketFromRequest is false
+	bucketPrefix := s.getBucketFromContextForKey(ctx)
+	key := s.buildKeyWithBucketPrefix(image, bucketPrefix)
+
 	_, err := client.DeleteObject(ctx, &s3.DeleteObjectInput{
 		Bucket: aws.String(bucket),
-		Key:    aws.String(image),
+		Key:    aws.String(key),
 	})
+	if err != nil {
+		s.Logger.Info("S3 delete object error",
+			zap.String("bucket", bucket),
+			zap.String("key", key),
+			zap.String("region", region),
+			zap.String("original_image", image))
+	}
 	return err
 }
 
@@ -204,9 +241,14 @@ func (s *S3Storage) Stat(ctx context.Context, image string) (stat *imagor.Stat, 
 	bucket := s.getBucketFromContext(ctx)
 	region := s.getRegionFromContext(ctx)
 	client := s.getClientWithRegion(region)
+
+	// Get bucket prefix for key when bucketFromRequest is false
+	bucketPrefix := s.getBucketFromContextForKey(ctx)
+	key := s.buildKeyWithBucketPrefix(image, bucketPrefix)
+
 	input := &s3.HeadObjectInput{
 		Bucket: aws.String(bucket),
-		Key:    aws.String(image),
+		Key:    aws.String(key),
 	}
 	head, err := client.HeadObject(ctx, input)
 	if err != nil {
@@ -215,7 +257,7 @@ func (s *S3Storage) Stat(ctx context.Context, image string) (stat *imagor.Stat, 
 		}
 		s.Logger.Info("S3 stat error",
 			zap.String("bucket", bucket),
-			zap.String("key", image))
+			zap.String("key", key))
 		return nil, err
 	}
 	return &imagor.Stat{

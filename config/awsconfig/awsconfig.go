@@ -77,7 +77,7 @@ func WithAWS(fs *flag.FlagSet, cb func() (*zap.Logger, bool)) imagor.Option {
 			"Base directory for S3 Storage")
 		s3StoragePathPrefix = fs.String("s3-storage-path-prefix", "",
 			"Base path prefix for S3 Storage")
-		s3StorageACL = fs.String("s3-storage-acl", "public-read",
+		s3StorageACL = fs.String("s3-storage-acl", "",
 			"Upload ACL for S3 Storage")
 		s3StorageExpiration = fs.Duration("s3-storage-expiration", 0,
 			"S3 Storage expiration duration e.g. 24h. Default no expiration")
@@ -88,7 +88,7 @@ func WithAWS(fs *flag.FlagSet, cb func() (*zap.Logger, bool)) imagor.Option {
 			"Base directory for S3 Result Storage")
 		s3ResultStoragePathPrefix = fs.String("s3-result-storage-path-prefix", "",
 			"Base path prefix for S3 Result Storage")
-		s3ResultStorageACL = fs.String("s3-result-storage-acl", "public-read",
+		s3ResultStorageACL = fs.String("s3-result-storage-acl", "",
 			"Upload ACL for S3 Result Storage")
 		s3ResultStorageExpiration = fs.Duration("s3-result-storage-expiration", 0,
 			"S3 Result Storage expiration duration e.g. 24h. Default no expiration")
@@ -173,6 +173,8 @@ func WithAWS(fs *flag.FlagSet, cb func() (*zap.Logger, bool)) imagor.Option {
 				s3storage.WithEndpoint(endpoint),
 				s3storage.WithForcePathStyle(*s3ForcePathStyle),
 				s3storage.WithLogger(logger),
+				s3storage.WithBucketFromRequest(false),
+				s3storage.WithRegionFromRequest(false),
 			)
 
 			app.Storages = append(app.Storages, storage)
@@ -192,6 +194,8 @@ func WithAWS(fs *flag.FlagSet, cb func() (*zap.Logger, bool)) imagor.Option {
 				s3storage.WithEndpoint(endpoint),
 				s3storage.WithForcePathStyle(*s3ForcePathStyle),
 				s3storage.WithLogger(logger),
+				s3storage.WithBucketFromRequest(true),
+				s3storage.WithRegionFromRequest(true),
 			)
 
 			app.Loaders = append(app.Loaders, loader)
@@ -214,6 +218,8 @@ func WithAWS(fs *flag.FlagSet, cb func() (*zap.Logger, bool)) imagor.Option {
 				s3storage.WithEndpoint(endpoint),
 				s3storage.WithForcePathStyle(*s3ForcePathStyle),
 				s3storage.WithLogger(logger),
+				s3storage.WithBucketFromRequest(false),
+				s3storage.WithRegionFromRequest(false),
 			)
 
 			app.ResultStorages = append(app.ResultStorages, resultStorage)
