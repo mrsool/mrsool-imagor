@@ -3,6 +3,7 @@ package s3storage
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"path/filepath"
@@ -33,6 +34,10 @@ type S3Storage struct {
 	Endpoint       string
 	ForcePathStyle bool
 	Logger         *zap.Logger
+
+	// Imgix fallback configuration
+	ImgixFallbackEnabled bool
+	ImgixFallbackTimeout time.Duration
 
 	safeChars         imagorpath.SafeChars
 	bucketFromRequest bool
@@ -127,6 +132,12 @@ func (s *S3Storage) Get(r *http.Request, image string) (*imagor.Blob, error) {
 				zap.String("key", key),
 				zap.String("region", region),
 				zap.String("original_image", r.URL.Path))
+
+			// If it's a not found error and imgix fallback is enabled, try imgix
+			if isNotFoundError(err) && s.ImgixFallbackEnabled {
+				return s.fetchFromImgixAndSave(ctx, r, bucket, key, image)
+			}
+
 			if isNotFoundError(err) {
 				return nil, 0, imagor.ErrNotFound
 			}
@@ -265,6 +276,86 @@ func (s *S3Storage) Stat(ctx context.Context, image string) (stat *imagor.Stat, 
 		ETag:         *head.ETag,
 		ModifiedTime: *head.LastModified,
 	}, nil
+}
+
+// fetchFromImgixAndSave fetches the image from imgix and saves it to S3
+func (s *S3Storage) fetchFromImgixAndSave(ctx context.Context, r *http.Request, bucket, key, image string) (io.ReadCloser, int64, error) {
+	imgixURL := fmt.Sprintf("https://%s.imgix.net/%s?q=100&w=1", bucket, image)
+
+	s.Logger.Info("Attempting imgix fallback",
+		zap.String("bucket", bucket),
+		zap.String("key", key),
+		zap.String("imgix_url", imgixURL),
+		zap.String("original_image", r.URL.Path))
+
+	// Create HTTP client with timeout
+	timeout := s.ImgixFallbackTimeout
+	if timeout == 0 {
+		timeout = 30 * time.Second // Default timeout - increased for imgix
+	}
+
+	client := &http.Client{
+		Timeout: timeout,
+	}
+	req, err := http.NewRequestWithContext(ctx, "GET", imgixURL, nil)
+	if err != nil {
+		s.Logger.Error("Failed to create imgix request", zap.Error(err))
+		return nil, 0, imagor.ErrNotFound
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		s.Logger.Error("Failed to fetch from imgix",
+			zap.Error(err),
+			zap.String("url", imgixURL),
+			zap.Duration("timeout", timeout))
+		return nil, 0, imagor.ErrNotFound
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		s.Logger.Error("Imgix returned non-200 status",
+			zap.Int("status", resp.StatusCode),
+			zap.String("url", imgixURL))
+		return nil, 0, imagor.ErrNotFound
+	}
+
+	// Read the response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		s.Logger.Error("Failed to read imgix response", zap.Error(err))
+		return nil, 0, imagor.ErrNotFound
+	}
+
+	// Save to S3
+	putInput := &s3.PutObjectInput{
+		Bucket:        aws.String(bucket),
+		Key:           aws.String(key),
+		Body:          strings.NewReader(string(body)),
+		ContentType:   aws.String(resp.Header.Get("Content-Type")),
+		ContentLength: aws.Int64(int64(len(body))),
+		StorageClass:  types.StorageClass(s.StorageClass),
+	}
+
+	// Only set ACL if it's explicitly configured
+	if s.ACL != "" {
+		putInput.ACL = types.ObjectCannedACL(s.ACL)
+	}
+
+	_, err = s.getClientWithRegion(s.getRegionFromRequest(r)).PutObject(ctx, putInput)
+	if err != nil {
+		s.Logger.Error("Failed to save imgix content to S3", zap.Error(err))
+		// Still return the content even if saving failed
+		return io.NopCloser(strings.NewReader(string(body))), int64(len(body)), nil
+	}
+
+	s.Logger.Info("Successfully fetched from imgix and saved to S3",
+		zap.String("bucket", bucket),
+		zap.String("key", key),
+		zap.String("imgix_url", imgixURL))
+
+	// Return the content
+	return io.NopCloser(strings.NewReader(string(body))), int64(len(body)), nil
 }
 
 // Helper function for not found errors

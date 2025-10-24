@@ -3,6 +3,7 @@ package awsconfig
 import (
 	"context"
 	"flag"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -175,6 +176,8 @@ func WithAWS(fs *flag.FlagSet, cb func() (*zap.Logger, bool)) imagor.Option {
 				s3storage.WithLogger(logger),
 				s3storage.WithBucketFromRequest(false),
 				s3storage.WithRegionFromRequest(false),
+				s3storage.WithImgixFallback(false),
+				s3storage.WithImgixFallbackTimeout(300*time.Second),
 			)
 
 			app.Storages = append(app.Storages, storage)
@@ -196,6 +199,8 @@ func WithAWS(fs *flag.FlagSet, cb func() (*zap.Logger, bool)) imagor.Option {
 				s3storage.WithLogger(logger),
 				s3storage.WithBucketFromRequest(true),
 				s3storage.WithRegionFromRequest(true),
+				s3storage.WithImgixFallback(true),
+				s3storage.WithImgixFallbackTimeout(300*time.Second),
 			)
 
 			app.Loaders = append(app.Loaders, loader)
@@ -220,6 +225,8 @@ func WithAWS(fs *flag.FlagSet, cb func() (*zap.Logger, bool)) imagor.Option {
 				s3storage.WithLogger(logger),
 				s3storage.WithBucketFromRequest(false),
 				s3storage.WithRegionFromRequest(false),
+				s3storage.WithImgixFallback(false),
+				s3storage.WithImgixFallbackTimeout(300*time.Second),
 			)
 
 			app.ResultStorages = append(app.ResultStorages, resultStorage)
