@@ -126,3 +126,19 @@ func WithRegionFromRequest(regionFromRequest bool) Option {
 		s.regionFromRequest = regionFromRequest
 	}
 }
+
+// WithImgixFallback with imgix fallback option
+func WithImgixFallback(enabled bool) Option {
+	return func(s *S3Storage) {
+		s.ImgixFallbackEnabled = enabled
+	}
+}
+
+// WithImgixFallbackTimeout with imgix fallback timeout option
+func WithImgixFallbackTimeout(timeout time.Duration) Option {
+	return func(s *S3Storage) {
+		if timeout > 0 {
+			s.ImgixFallbackTimeout = timeout
+		}
+	}
+}
