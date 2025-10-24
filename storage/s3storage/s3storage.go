@@ -126,10 +126,6 @@ func (s *S3Storage) Get(r *http.Request, image string) (*imagor.Blob, error) {
 			Key:    aws.String(key),
 		}
 		out, err := client.GetObject(ctx, input)
-		if s.ImgixFallbackEnabled {
-			s.Logger.Info("Imgix fallback enabled", zap.String("bucket", bucket), zap.String("key", key), zap.String("region", region), zap.String("original_image", r.URL.Path))
-			return s.fetchFromImgixAndSave(ctx, r, bucket, key, image)
-		}
 		if err != nil {
 			s.Logger.Info("S3 get object error",
 				zap.String("bucket", bucket),
