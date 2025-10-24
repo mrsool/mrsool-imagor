@@ -281,7 +281,7 @@ func (s *S3Storage) Stat(ctx context.Context, image string) (stat *imagor.Stat, 
 // fetchFromImgixAndSave fetches the image from imgix and saves it to S3
 func (s *S3Storage) fetchFromImgixAndSave(ctx context.Context, r *http.Request, bucket, key, image string) (io.ReadCloser, int64, error) {
 	imgixSubdomain := bucket
-	if imgixSubdomain == "'mrsool-business" {
+	if imgixSubdomain == "mrsool-business" {
 		imgixSubdomain = "mrsool"
 	}
 	imgixURL := fmt.Sprintf("https://%s.imgix.net/%s?q=100&w=1", imgixSubdomain, image)
